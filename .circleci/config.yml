@@ -50,7 +50,7 @@ workflows:
             branches:
               only: [main, "/cve[\\/-].*/"]
       - proxy_deploy:
-          requires: [wg/test, wg/lint]
+          requires: [wg/build]
           context: AWS
           filters:
             branches:
