@@ -12,7 +12,7 @@ DOCKER_TAG=${DOCKER_TAG:-dev}
 
 BUILD_ARGS=(
   docker build -t "${DOCKER_REPO}/${DOCKER_APP}:${DOCKER_TAG}"
-  "--target=tesla-http-proxy" "${ROOT_DIR}"
+  "--target=." "${ROOT_DIR}"
 )
 if [ -n "${DOCKER_DEFAULT_PLATFORM}" ]; then
   BUILD_ARGS+=(--platform "${DOCKER_DEFAULT_PLATFORM}")
@@ -21,5 +21,5 @@ if GIT_HASH=$(git rev-parse HEAD); then
   BUILD_ARGS+=(--build-arg "GIT_HASH=${GIT_HASH}")
 fi
 
-# Builds the tesla http proxy  image from the Dockerfile in the parent directory
+# Builds the tesla http proxy image from the Dockerfile in the parent directory
 exec "${BUILD_ARGS[@]}"
