@@ -56,7 +56,7 @@ func main() {
 	flag.StringVar(&certFilename, "cert", "", "TLS certificate chain `file` with concatenated server, intermediate CA, and root CA certificates")
 	flag.StringVar(&keyFilename, "tls-key", "", "Server TLS private key `file`")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
-	flag.StringVar(&host, "host", "localhost", "Proxy server `hostname`")
+	flag.StringVar(&host, "host", "0.0.0.0", "Proxy server `hostname`")
 	flag.IntVar(&port, "port", defaultPort, "`Port` to listen on")
 	flag.Usage = Usage
 	config.RegisterCommandLineFlags()
@@ -100,4 +100,5 @@ func main() {
 	// authorized, invoke p.ServeHTTP. Finally, replace p in the below ListenAndServeTLS call with
 	// an object of your newly created type.
 	log.Error("Server stopped: %s", http.ListenAndServeTLS(addr, certFilename, keyFilename, p))
+	//log.Error("Server stopped: %s", http.ListenAndServe(addr, p))
 }
