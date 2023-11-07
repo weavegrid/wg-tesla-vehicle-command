@@ -1,3 +1,2 @@
-#!/usr/bin/env bash
-
+#!/bin/sh -x 
 echo "running tests!"

@@ -17,3 +17,6 @@ build: test
 install: test
 	go install ./cmd/...
 .PHONY: install
+
+dev-build: 
+	./bin/build.sh 
