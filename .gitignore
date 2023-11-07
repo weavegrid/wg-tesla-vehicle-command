@@ -26,3 +26,12 @@ go.work
 
 #ignore macos files
 .DS_Store
+.terraform
+.terraform.lock.hcl
+
+.venv
+*.swp
+*.swo
+bin/localstack/custom_*.sh
+.vscode
+.devcontainer

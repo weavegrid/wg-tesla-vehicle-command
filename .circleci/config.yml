@@ -1,0 +1,104 @@
+version: 2.1
+orbs:
+  wg: weavegrid/wg-branch@0.2
+  terraform: circleci/terraform@3.0
+parameters:
+  docker_use_weavegrid:
+    description: Use dedicated build host
+    type: boolean
+    default: true
+jobs:
+  proxy_deploy:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - terraform/install:
+          terraform_version: "1.3.8"
+      - run:
+          name: Apply changes
+          command: |
+            cd terraform
+            terraform init -input=false
+            terraform apply \
+              -input=false \
+              -auto-approve \
+              -var image_tag="$(git rev-parse --short=7 HEAD)"
+workflows:
+  version: 2
+  build:
+    jobs:
+      - wg/build:
+          context: AWS
+          repo_name: tesla-http-proxy
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+      - wg/test:
+          context: AWS
+          repo_name: tesla-http-proxy
+          requires: [wg/build]
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+      - wg/lint:
+          context: AWS
+          repo_name: tesla-http-proxy
+          requires: [wg/build]
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+      - wg/image_scan:
+          requires: [wg/build]
+          context:
+            - AWS
+            - jira
+          repo_name: tesla-http-proxy
+          # Create issues for CVEs with severity at least CRITICAL and assign to msg
+          extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
+          filters:
+            branches:
+              only: [main, "/cve[\\/-].*/"]
+      - proxy_deploy:
+          requires: [wg/test, wg/lint]
+          context: AWS
+          filters:
+            branches:
+              only: [main]
+      - wg/deploy_to_stage:
+          context: [AWS, circleci]
+          chart_name: tesla-http-proxy
+          deploy_branch_name: tesla-http-proxy
+          default_branch: main
+          requires: [wg/build]
+          filters:
+            branches:
+              only: [main]
+      - wg/build:
+          name: Build for ARM
+          context: AWS
+          repo_name: tesla-http-proxy
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+          docker_tag_suffix: "-arm64"
+          docker_architecture: arm64
+          filters:
+            branches:
+              only: [main, "/.*\\bmulti-arch\\b.*/"]
+      - wg/build-manifest:
+          requires: [wg/build, "Build for ARM"]
+          context: AWS
+          repo_name: tesla-http-proxy
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+          image_tag_suffixes: ",-arm64"
+          filters:
+            branches:
+              only: [main, "/.*\\bmulti-arch\\b.*/"]
+  nightly-scan:
+    triggers:
+      - schedule:
+          cron: "44 2 * * *"
+          filters:
+            branches:
+              only: [main]
+    jobs:
+      - wg/image_scan:
+          context:
+            - AWS
+            - jira
+          repo_name: tesla-http-proxy
+          # Create issues for CVEs with severity at least CRITICAL and assign to msg
+          extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
