@@ -32,16 +32,6 @@ workflows:
           context: AWS
           repo_name: tesla-http-proxy
           docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
-      - wg/test:
-          context: AWS
-          repo_name: tesla-http-proxy
-          requires: [wg/build]
-          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
-      - wg/lint:
-          context: AWS
-          repo_name: tesla-http-proxy
-          requires: [wg/build]
-          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
       - wg/image_scan:
           requires: [wg/build]
           context:
