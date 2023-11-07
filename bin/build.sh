@@ -12,7 +12,7 @@ DOCKER_TAG=${DOCKER_TAG:-dev}
 
 BUILD_ARGS=(
   docker build -t "${DOCKER_REPO}/${DOCKER_APP}:${DOCKER_TAG}"
-  "--target=." "${ROOT_DIR}"
+  "${ROOT_DIR}"
 )
 if [ -n "${DOCKER_DEFAULT_PLATFORM}" ]; then
   BUILD_ARGS+=(--platform "${DOCKER_DEFAULT_PLATFORM}")
