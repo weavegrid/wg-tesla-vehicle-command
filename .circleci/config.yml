@@ -43,12 +43,12 @@ workflows:
           filters:
             branches:
               only: [main, "/cve[\\/-].*/"]
-      #- proxy_deploy:
-      #    requires: [wg/build]
-      #    context: AWS
-      #    filters:
-      #      branches:
-      #        only: [main]
+      - proxy_deploy:
+         requires: [wg/build]
+         context: AWS
+         filters:
+           branches:
+             only: [main]
       - wg/deploy_to_stage:
          context: [AWS, circleci]
          chart_name: tesla-http-proxy
