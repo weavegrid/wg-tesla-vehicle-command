@@ -210,6 +210,12 @@ func (p *Proxy) forwardRequest(host string, w http.ResponseWriter, req *http.Req
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Info("Received %s request for %s", req.Method, req.URL.Path)
 
+	if strings.HasPrefix(req.URL.Path, "/health") {
+		// Health check
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	acct, err := getAccount(req)
 	if err != nil {
 		writeJSONError(w, http.StatusForbidden, err)
