@@ -18,9 +18,7 @@ resource "aws_ecs_task_definition" "tesla_http_proxy_task" {
   memory                   = 2048
 
   execution_role_arn = data.terraform_remote_state.secrets_proxy.outputs.iam.exec_role
-
-  # TODO: No special role should be fine, ensure this is what happens
-  # task_role_arn            = ...
+  task_role_arn            = data.terraform_remote_state.secrets_proxy.outputs.iam.task_role
 
   container_definitions = jsonencode([
     {
