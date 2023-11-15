@@ -53,7 +53,6 @@ resource "aws_ecs_task_definition" "tesla_http_proxy_task" {
         }
       }
 
-      # TODO: Figure out appropriate health check
       healthCheck = {
         command = [
           "CMD",
