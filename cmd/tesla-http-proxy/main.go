@@ -7,10 +7,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-
 	"github.com/teslamotors/vehicle-command/internal/authentication"
 	"github.com/teslamotors/vehicle-command/internal/log"
 	"github.com/teslamotors/vehicle-command/pkg/cli"
@@ -90,29 +86,7 @@ func main() {
 	var skey protocol.ECDHPrivateKey
 
 	// read secret from environment variable
-	awsSecretName := os.Getenv("TESLA_HTTP_PROXY_KEY")      //production should use this value
-	teslaSecretValue := os.Getenv("TESLA_HTTP_PROXY_VALUE") //set for dev  machine only
-	if awsSecretName != "" {
-
-		log.Debug("Using AWS secret %s for tesla", awsSecretName)
-
-		sess := session.Must(session.NewSessionWithOptions(session.Options{}))
-		svc := secretsmanager.New(sess)
-		input := &secretsmanager.GetSecretValueInput{
-			SecretId: aws.String(awsSecretName),
-		}
-		apiSecret, err := svc.GetSecretValue(input)
-		if err != nil {
-			log.Debug("Error retreiving secret key from aws secret: %s, error: %s", awsSecretName, err.Error())
-			return
-		}
-
-		skey, err = authentication.LoadECDHKeyFromString(apiSecret.String())
-		if err != nil {
-			log.Debug("Error converting pem secret to ECDHPrivateKey: %s", err.Error())
-			return
-		}
-	}
+	teslaSecretValue := os.Getenv("TESLA_HTTP_PROXY_VALUE")
 	if teslaSecretValue != "" {
 		skey, err = authentication.LoadECDHKeyFromString(teslaSecretValue)
 		if err != nil {
