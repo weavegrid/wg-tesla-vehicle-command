@@ -1,13 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
+
+	"github.com/teslamotors/vehicle-command/internal/authentication"
 	"github.com/teslamotors/vehicle-command/internal/log"
 	"github.com/teslamotors/vehicle-command/pkg/cli"
 	"github.com/teslamotors/vehicle-command/pkg/protocol"
@@ -71,23 +75,57 @@ func main() {
 		fmt.Fprintln(os.Stderr, warning)
 	}
 
-	var skey protocol.ECDHPrivateKey
-	skey, err = config.PrivateKey()
-	if err != nil {
-		return
-	}
+	//
+	//if tlsPublicKey, err := protocol.LoadPublicKey(keyFilename); err == nil {
+	//	if bytes.Equal(tlsPublicKey.Bytes(), skey.PublicBytes()) {
+	//		fmt.Fprintln(os.Stderr, "It is unsafe to use the same private key for TLS and command authentication.")
+	//		fmt.Fprintln(os.Stderr, "")
+	//		fmt.Fprintln(os.Stderr, "Generate a new TLS key for this server.")
+	//		return
+	//	}
+	//}
 
-	if tlsPublicKey, err := protocol.LoadPublicKey(keyFilename); err == nil {
-		if bytes.Equal(tlsPublicKey.Bytes(), skey.PublicBytes()) {
-			fmt.Fprintln(os.Stderr, "It is unsafe to use the same private key for TLS and command authentication.")
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "Generate a new TLS key for this server.")
+	log.Debug("Loading secrets")
+
+	var skey protocol.ECDHPrivateKey
+
+	// read secret from environment variable
+	awsSecretName := os.Getenv("TESLA_HTTP_PROXY_KEY")      //production should use this value
+	teslaSecretValue := os.Getenv("TESLA_HTTP_PROXY_VALUE") //set for dev  machine only
+	if awsSecretName != "" {
+
+		log.Debug("Using AWS secret %s for tesla", awsSecretName)
+
+		sess := session.Must(session.NewSessionWithOptions(session.Options{}))
+		svc := secretsmanager.New(sess)
+		input := &secretsmanager.GetSecretValueInput{
+			SecretId: aws.String(awsSecretName),
+		}
+		apiSecret, err := svc.GetSecretValue(input)
+		if err != nil {
+			log.Debug("Error retreiving secret key from aws secret: %s, error: %s", awsSecretName, err.Error())
+			return
+		}
+
+		skey, err = authentication.LoadECDHKeyFromString(apiSecret.String())
+		if err != nil {
+			log.Debug("Error converting pem secret to ECDHPrivateKey: %s", err.Error())
 			return
 		}
 	}
+	if teslaSecretValue != "" {
+		skey, err = authentication.LoadECDHKeyFromString(teslaSecretValue)
+		if err != nil {
+			log.Debug("Error converting pem secret to ECDHPrivateKey: %s", err.Error())
+			return
+		}
+	} else {
+		log.Debug("Error: no secret key for tesla found")
+		return
+	}
 
 	log.Debug("Creating proxy")
-	p, err := proxy.New(context.Background(), skey, cacheSize)
+	teslaProxy, err := proxy.New(context.Background(), skey, cacheSize)
 	if err != nil {
 		return
 	}
@@ -99,6 +137,6 @@ func main() {
 	// method of your implementation can perform your business logic and then, if the request is
 	// authorized, invoke p.ServeHTTP. Finally, replace p in the below ListenAndServeTLS call with
 	// an object of your newly created type.
-	log.Error("Server stopped: %s", http.ListenAndServeTLS(addr, certFilename, keyFilename, p))
-	//log.Error("Server stopped: %s", http.ListenAndServe(addr, p))
+	//log.Error("Server stopped: %s", http.ListenAndServeTLS(addr, certFilename, keyFilename, p))
+	log.Error("Server stopped: %s", http.ListenAndServe(addr, teslaProxy))
 }

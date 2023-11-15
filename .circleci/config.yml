@@ -49,15 +49,15 @@ workflows:
       #    filters:
       #      branches:
       #        only: [main]
-      #- wg/deploy_to_stage:
-      #    context: [AWS, circleci]
-      #    chart_name: tesla-http-proxy
-      #    deploy_branch_name: tesla-http-proxy
-      #    default_branch: main
-      #    requires: [wg/build]
-      #    filters:
-      #      branches:
-      #        only: [main]
+      - wg/deploy_to_stage:
+         context: [AWS, circleci]
+         chart_name: tesla-http-proxy
+         deploy_branch_name: tesla-http-proxy
+         default_branch: main
+         requires: [wg/build]
+         filters:
+           branches:
+             only: [main]
       #- wg/build:
       #    name: Build for ARM
       #    context: AWS

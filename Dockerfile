@@ -19,4 +19,5 @@ RUN CGO_ENABLED=0 go build -v -o /$APP_NAME $GOPATH/src/$APP_NAME/$CMD_PATH
 ENV TESLA_KEY_FILE private_key.pem
 
 # Run the application
-CMD [ "/tesla-http-proxy", "-tls-key", "tls-key.pem", "-cert", "tls-cert.pem", "-verbose", "true"]
+#CMD [ "/tesla-http-proxy", "-tls-key", "tls-key.pem", "-cert", "tls-cert.pem", "-verbose", "true"]
+CMD [ "/tesla-http-proxy", "-port", "8181", -verbose", "true"]
