@@ -30,14 +30,14 @@ workflows:
     jobs:
       - wg/build:
           context: AWS
-          repo_name: tesla-http-proxy
+          repo_name: tesla_http_proxy
           docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
       - wg/image_scan:
           requires: [wg/build]
           context:
             - AWS
             - jira
-          repo_name: tesla-http-proxy
+          repo_name: tesla_http_proxy
           # Create issues for CVEs with severity at least CRITICAL and assign to msg
           extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
           filters:
@@ -58,25 +58,6 @@ workflows:
          filters:
            branches:
              only: [main]
-      #- wg/build:
-      #    name: Build for ARM
-      #    context: AWS
-      #    repo_name: tesla-http-proxy
-      #    docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
-      #    docker_tag_suffix: "-arm64"
-      #    docker_architecture: arm64
-      #    filters:
-      #      branches:
-      #        only: [main, "/.*\\bmulti-arch\\b.*/"]
-      #- wg/build-manifest:
-      #    requires: [wg/build, "Build for ARM"]
-      #    context: AWS
-      #    repo_name: tesla-http-proxy
-      #    docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
-      #    image_tag_suffixes: ",-arm64"
-      #    filters:
-      #      branches:
-      #        only: [main, "/.*\\bmulti-arch\\b.*/"]
   nightly-scan:
     triggers:
       - schedule:
@@ -89,6 +70,6 @@ workflows:
           context:
             - AWS
             - jira
-          repo_name: tesla-http-proxy
+          repo_name: tesla_http_proxy
           # Create issues for CVEs with severity at least CRITICAL and assign to msg
           extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
