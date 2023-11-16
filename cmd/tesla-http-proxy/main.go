@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"net/http"
@@ -87,9 +88,14 @@ func main() {
 	var skey protocol.ECDHPrivateKey
 
 	// read secret from environment variable
-	teslaSecretValue := os.Getenv("TESLA_HTTP_PROXY_VALUE")
+	teslaSecretValue := os.Getenv("TESLA_HTTP_PROXY_API_KEY")
 	if teslaSecretValue != "" {
-		skey, err = authentication.LoadECDHKeyFromString(teslaSecretValue)
+		decodedTeslaSecret, err := base64.StdEncoding.DecodeString(teslaSecretValue)
+		if err != nil {
+			log.Debug("Error decoding tesla secret value")
+			return
+		}
+		skey, err = authentication.LoadECDHKeyFromString(string(decodedTeslaSecret))
 		if err != nil {
 			log.Debug("value: %s", strings.Replace(teslaSecretValue, "UQDQ", "9999", -1))
 			log.Debug("Error converting pem secret to ECDHPrivateKey: %s", err.Error())
