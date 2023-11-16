@@ -3,6 +3,6 @@ data "terraform_remote_state" "secrets_proxy" {
   config = {
     region = var.aws_region
     bucket = "wg-terragrunt"
-    key    = "vsp/tesla-http-proxy-deploy/terraform.tfstate"
+    key    = "vsp/secrets-proxy/terraform.tfstate"
   }
 }
