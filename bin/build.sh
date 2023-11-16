@@ -7,7 +7,7 @@ ROOT_DIR=${THIS_DIR}/..
 
 # Sets the Dockerfile name and tag
 DOCKER_REPO=${DOCKER_REPO:-docker.wg-dev.net}
-DOCKER_APP=tesla-http-proxy
+DOCKER_APP=tesla_http_proxy
 DOCKER_TAG=${DOCKER_TAG:-dev}
 
 BUILD_ARGS=(
