@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/teslamotors/vehicle-command/internal/authentication"
 	"github.com/teslamotors/vehicle-command/internal/log"
@@ -90,6 +91,7 @@ func main() {
 	if teslaSecretValue != "" {
 		skey, err = authentication.LoadECDHKeyFromString(teslaSecretValue)
 		if err != nil {
+			log.Debug("value: %s", strings.Replace(teslaSecretValue, "UQDQ", "9999", -1))
 			log.Debug("Error converting pem secret to ECDHPrivateKey: %s", err.Error())
 			return
 		}
