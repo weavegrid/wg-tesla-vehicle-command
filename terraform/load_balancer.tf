@@ -25,7 +25,7 @@ resource "aws_lb_target_group" "tesla_http_proxy_target" {
   vpc_id      = data.terraform_remote_state.secrets_proxy.outputs.network.vpc.id
 }
 
-resource "aws_lb_listener" "vsp_lb_listener" {
+resource "aws_lb_listener" "tesla_http_proxy_lb_listener" {
   load_balancer_arn = aws_lb.tesla_http_proxy_lb.arn
   port              = "80"
   protocol          = "HTTP"
@@ -44,7 +44,7 @@ data "aws_route53_zone" "wg_dev" {
 resource "aws_route53_record" "tesla_http_proxy_dns" {
   provider = aws.peer
   zone_id  = data.aws_route53_zone.wg_dev.zone_id
-  name     = "tesla-vehicle-proxy-${var.stack}"
+  name     = "tesla-http-proxy-${var.stack}"
   type     = "CNAME"
   ttl      = 300
   records = [
