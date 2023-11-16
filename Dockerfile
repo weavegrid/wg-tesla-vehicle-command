@@ -20,4 +20,4 @@ ENV TESLA_KEY_FILE private_key.pem
 
 # Run the application
 #CMD [ "/tesla-http-proxy", "-tls-key", "tls-key.pem", "-cert", "tls-cert.pem", "-verbose", "true"]
-CMD [ "/tesla-http-proxy", "-port", "8080", -verbose", "true"]
+CMD [ "/tesla-http-proxy", "-port", "8080", "-verbose", "true"]
