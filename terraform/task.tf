@@ -53,10 +53,8 @@ resource "aws_ecs_task_definition" "tesla_http_proxy_task" {
 
       healthCheck = {
         command = [
-          "CMD",
-          "python",
-          "-c",
-          "import httpx; httpx.get('http://localhost:8080/health').raise_for_status()",
+          "CMD-SHELL",
+          "wget -q --spider http://localhost:8080/healthz || exit 1"
         ]
         interval    = 30
         timeout     = 5
