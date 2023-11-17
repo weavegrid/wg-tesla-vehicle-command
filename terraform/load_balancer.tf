@@ -6,6 +6,7 @@ resource "aws_lb" "tesla_http_proxy_lb" {
   load_balancer_type = "application"
   security_groups = [
     data.terraform_remote_state.secrets_proxy.outputs.security_groups.vpc_internal.id,
+    data.terraform_remote_state.secrets_proxy.outputs.security_groups.vpc_peer.id,
   ]
   subnets = [
     for subnet in data.terraform_remote_state.secrets_proxy.outputs.network.private_subnets : subnet.id
