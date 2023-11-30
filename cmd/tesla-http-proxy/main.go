@@ -21,30 +21,42 @@ const (
 	defaultPort = 443
 )
 
-const warning = `
-Do not listen on a network interface without adding client authentication. Unauthorized clients may
-be used to create excessive traffic from your IP address to Tesla's servers, which Tesla may respond
-to by rate limiting or blocking your connections.`
-
 func Usage() {
 	out := flag.CommandLine.Output()
 	fmt.Fprintf(out, "Usage: %s [OPTION...]\n", os.Args[0])
 	fmt.Fprintf(out, "\nA server that exposes a REST API for sending commands to Tesla vehicles")
 	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, warning)
-	fmt.Fprintln(out, "")
 	fmt.Fprintln(out, "Options:")
 	flag.PrintDefaults()
+}
+
+type WGTeslaProxy struct {
+	teslaProxy *proxy.Proxy
+}
+
+func NewWGTeslaProxy(proxy *proxy.Proxy) *WGTeslaProxy {
+	return &WGTeslaProxy{teslaProxy: proxy}
+}
+
+// WGTeslaProxy is an http handler that wraps the tesla proxy
+// this way we can inspect requests before passing on to the default tesla proxy
+func (wgp *WGTeslaProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
+	if strings.HasPrefix(req.URL.Path, "/health") || req.URL.Path == "/" {
+		// Health check; just return ok and don't spam logs
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	//pass request to tesla proxy
+	wgp.teslaProxy.ServeHTTP(w, req)
 }
 
 func main() {
 	// Command-line options
 	var (
-		keyFilename  string
-		certFilename string
-		verbose      bool
-		host         string
-		port         int
+		verbose bool
+		host    string
+		port    int
 	)
 	config := cli.Config{Flags: cli.FlagPrivateKey}
 	var err error
@@ -55,8 +67,6 @@ func main() {
 		}
 	}()
 
-	flag.StringVar(&certFilename, "cert", "", "TLS certificate chain `file` with concatenated server, intermediate CA, and root CA certificates")
-	flag.StringVar(&keyFilename, "tls-key", "", "Server TLS private key `file`")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
 	flag.StringVar(&host, "host", "0.0.0.0", "Proxy server `hostname`")
 	flag.IntVar(&port, "port", defaultPort, "`Port` to listen on")
@@ -68,20 +78,6 @@ func main() {
 	if verbose {
 		log.SetLevel(log.LevelDebug)
 	}
-
-	if host != "localhost" {
-		fmt.Fprintln(os.Stderr, warning)
-	}
-
-	//
-	//if tlsPublicKey, err := protocol.LoadPublicKey(keyFilename); err == nil {
-	//	if bytes.Equal(tlsPublicKey.Bytes(), skey.PublicBytes()) {
-	//		fmt.Fprintln(os.Stderr, "It is unsafe to use the same private key for TLS and command authentication.")
-	//		fmt.Fprintln(os.Stderr, "")
-	//		fmt.Fprintln(os.Stderr, "Generate a new TLS key for this server.")
-	//		return
-	//	}
-	//}
 
 	log.Debug("Loading secrets")
 
@@ -114,11 +110,7 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	log.Info("Listening on %s", addr)
 
-	// To add more application logic requests, such as alternative client authentication, create
-	// a http.HandleFunc implementation (https://pkg.go.dev/net/http#HandlerFunc). The ServeHTTP
-	// method of your implementation can perform your business logic and then, if the request is
-	// authorized, invoke p.ServeHTTP. Finally, replace p in the below ListenAndServeTLS call with
-	// an object of your newly created type.
-	//log.Error("Server stopped: %s", http.ListenAndServeTLS(addr, certFilename, keyFilename, p))
-	log.Error("Server stopped: %s", http.ListenAndServe(addr, teslaProxy))
+	wgHandler := NewWGTeslaProxy(teslaProxy)
+
+	log.Error("Server stopped: %s", http.ListenAndServe(addr, wgHandler))
 }

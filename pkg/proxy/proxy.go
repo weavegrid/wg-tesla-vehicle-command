@@ -209,12 +209,6 @@ func (p *Proxy) forwardRequest(host string, w http.ResponseWriter, req *http.Req
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
-	if strings.HasPrefix(req.URL.Path, "/health") || req.URL.Path == "/" {
-		// Health check; just return ok and don't spam logs
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	log.Info("Received %s request for %s", req.Method, req.URL.Path)
 
 	acct, err := getAccount(req)
