@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultTimeout      = 10 * time.Second
+	defaultTimeout      = 30 * time.Second
 	maxRequestBodyBytes = 512
 	vinLength           = 17
 )
