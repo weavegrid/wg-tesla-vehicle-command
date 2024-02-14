@@ -123,6 +123,11 @@ func writeJSONError(w http.ResponseWriter, code int, err error) {
 		} else {
 			reply.Error = err.Error()
 		}
+
+		if err == protocol.ErrVehicleNotAwake {
+			code = http.StatusRequestTimeout
+		}
+
 		jsonBytes, err = json.Marshal(&reply)
 		if err != nil {
 			log.Error("Error serializing reply %+v: %s", &reply, err)

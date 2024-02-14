@@ -44,6 +44,8 @@ var (
 	ErrRequiresKey = NewError("no private key available", false, false)
 	// ErrInvalidPublicKey indicates a client tried to perform an operation with an invalid public
 	// key. Public keys are NIST-P256 EC keys, encoded in uncompressed form.
+	ErrVehicleNotAwake = NewError("vehicle unavailable: vehicle is offline or asleep", false, false)
+
 	ErrInvalidPublicKey     = authentication.ErrInvalidPublicKey
 	ErrKeyNotPaired         = NewError("vehicle rejected request: your public key has not been paired with the vehicle", false, false)
 	ErrUnpexpectedPublicKey = errors.New("remote public key changed unexpectedly")
