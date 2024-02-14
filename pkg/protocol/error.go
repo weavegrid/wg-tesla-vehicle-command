@@ -42,10 +42,10 @@ var (
 	ErrNoSession = NewError("cannot send authenticated command before establishing a vehicle session", false, false)
 	// ErrRequiresKey indicates a client tried to send a command without an ECDHPrivateKey.
 	ErrRequiresKey = NewError("no private key available", false, false)
+	// ErrVehicleNotAwake indicates the vehicle is offline or asleep.
+	ErrVehicleNotAwake = NewError("vehicle unavailable: vehicle is offline or asleep", false, false)
 	// ErrInvalidPublicKey indicates a client tried to perform an operation with an invalid public
 	// key. Public keys are NIST-P256 EC keys, encoded in uncompressed form.
-	ErrVehicleNotAwake = NewError("vehicle unavailable: vehicle is offline or asleep", false, false)
-
 	ErrInvalidPublicKey     = authentication.ErrInvalidPublicKey
 	ErrKeyNotPaired         = NewError("vehicle rejected request: your public key has not been paired with the vehicle", false, false)
 	ErrUnpexpectedPublicKey = errors.New("remote public key changed unexpectedly")
