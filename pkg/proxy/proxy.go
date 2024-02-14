@@ -124,6 +124,8 @@ func writeJSONError(w http.ResponseWriter, code int, err error) {
 			reply.Error = err.Error()
 		}
 
+		// override the status code to ensure a 408 is returned for vehicle not awake
+		// to be backwards compatible with the rest api return code
 		if err == protocol.ErrVehicleNotAwake {
 			code = http.StatusRequestTimeout
 		}
