@@ -8,6 +8,6 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias = "peer"
+  alias  = "peer"
   region = "us-west-2"
 }
