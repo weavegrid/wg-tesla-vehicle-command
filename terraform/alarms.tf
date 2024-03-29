@@ -12,7 +12,7 @@ locals {
   threshold_p95_latency          = 60 # in seconds
   threshold_unhealthy_host       = 1
   threshold_internal_error_count = 1
-  threshold_upstream_error_count = 3
+  threshold_upstream_error_count = 500
 
   # Alarm dimensions
   dim_lb_with_target = {
