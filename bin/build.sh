@@ -22,4 +22,4 @@ if GIT_HASH=$(git rev-parse HEAD); then
 fi
 
 # Builds the tesla http proxy image from the Dockerfile in the parent directory
-exec "${BUILD_ARGS[@]}"
+time "${BUILD_ARGS[@]}"
