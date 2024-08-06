@@ -29,9 +29,13 @@ workflows:
   build:
     jobs:
       - wg/build:
-          context: AWS
+          context: [AWS, slack-deploy]
           repo_name: tesla_http_proxy
           docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C07BGNVVC3H  # #temp-alert-tests
       - wg/image_scan:
           requires: [wg/build]
           context:
@@ -44,20 +48,28 @@ workflows:
             branches:
               only: [main, "/cve[\\/-].*/"]
       - proxy_deploy:
-         requires: [wg/build]
-         context: AWS
-         filters:
-           branches:
-             only: [main]
+          requires: [wg/build]
+          context: [AWS, slack-deploy]
+          filters:
+            branches:
+              only: [main]
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C07BGNVVC3H  # #temp-alert-tests
       - wg/deploy_to_stage:
-         context: [AWS, circleci]
-         chart_name: tesla-http-proxy
-         deploy_branch_name: tesla-http-proxy
-         default_branch: main
-         requires: [wg/build]
-         filters:
-           branches:
-             only: [main]
+          context: [AWS, circleci, slack-deploy]
+          chart_name: tesla-http-proxy
+          deploy_branch_name: tesla-http-proxy
+          default_branch: main
+          requires: [wg/build]
+          filters:
+            branches:
+              only: [main]
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C07BGNVVC3H  # #temp-alert-tests
   nightly-scan:
     triggers:
       - schedule:
