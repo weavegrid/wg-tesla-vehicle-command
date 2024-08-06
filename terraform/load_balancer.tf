@@ -1,15 +1,13 @@
-#TODO: fix remote state stuff
-#TODO: need peer, or just hack the route53 stuff in
 resource "aws_lb" "tesla_http_proxy_lb" {
   name               = "tesla-http-proxy-lb-${var.stack}"
   internal           = true
   load_balancer_type = "application"
   security_groups = [
-    data.terraform_remote_state.secrets_proxy.outputs.security_groups.vpc_internal.id,
-    data.terraform_remote_state.secrets_proxy.outputs.security_groups.vpc_peer.id,
+    data.terraform_remote_state.secrets_proxy.outputs.vpc.security_groups.internal_egress.id,
+    data.terraform_remote_state.secrets_proxy.outputs.vpc.security_groups.http.id,
   ]
   subnets = [
-    for subnet in data.terraform_remote_state.secrets_proxy.outputs.network.private_subnets : subnet.id
+    for _, subnet in data.terraform_remote_state.secrets_proxy.outputs.vpc.network.private_subnets : subnet.id
   ]
   idle_timeout = 2000
 
@@ -23,7 +21,7 @@ resource "aws_lb_target_group" "tesla_http_proxy_target" {
   port        = 80
   protocol    = "HTTP"
   target_type = "ip"
-  vpc_id      = data.terraform_remote_state.secrets_proxy.outputs.network.vpc.id
+  vpc_id      = data.terraform_remote_state.secrets_proxy.outputs.vpc.network.vpc.id
 }
 
 resource "aws_lb_listener" "tesla_http_proxy_lb_listener" {

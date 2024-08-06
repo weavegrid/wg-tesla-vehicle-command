@@ -8,10 +8,12 @@ resource "aws_ecs_service" "tesla_http_proxy_service" {
 
   network_configuration {
     subnets = [
-      for subnet in data.terraform_remote_state.secrets_proxy.outputs.network.private_subnets : subnet.id
+      for subnet in data.terraform_remote_state.secrets_proxy.outputs.vpc.network.private_subnets : subnet.id
     ]
     security_groups = [
-      data.terraform_remote_state.secrets_proxy.outputs.security_groups.vpc_internal.id
+      data.terraform_remote_state.secrets_proxy.outputs.vpc.security_groups.internal_ingress.id,
+      data.terraform_remote_state.secrets_proxy.outputs.vpc.security_groups.internal_egress.id,
+      data.terraform_remote_state.secrets_proxy.outputs.vpc.security_groups.global_egress.id,
     ]
     assign_public_ip = false
   }
