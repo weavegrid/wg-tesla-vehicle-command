@@ -29,36 +29,48 @@ workflows:
   build:
     jobs:
       - wg/build:
-          context: [AWS, slack-deploy]
+          context:
+            - AWS
+            - slack-deploy
           repo_name: tesla_http_proxy
           docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
           post-steps:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
-                channel: C07BGNVVC3H  # #temp-alert-tests
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
       - wg/image_scan:
           requires: [wg/build]
           context:
             - AWS
             - jira
+            - slack-deploy
           repo_name: tesla_http_proxy
           # Create issues for CVEs with severity at least CRITICAL and assign to msg
           extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
           filters:
             branches:
               only: [main, "/cve[\\/-].*/"]
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
       - proxy_deploy:
           requires: [wg/build]
-          context: [AWS, slack-deploy]
+          context:
+            - AWS
+            - slack-deploy
           filters:
             branches:
               only: [main]
           post-steps:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
-                channel: C07BGNVVC3H  # #temp-alert-tests
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
       - wg/deploy_to_stage:
-          context: [AWS, circleci, slack-deploy]
+          context:
+            - AWS
+            - circleci
+            - slack-deploy
           chart_name: tesla-http-proxy
           deploy_branch_name: tesla-http-proxy
           default_branch: main
@@ -69,7 +81,7 @@ workflows:
           post-steps:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
-                channel: C07BGNVVC3H  # #temp-alert-tests
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
   nightly-scan:
     triggers:
       - schedule:
@@ -82,6 +94,11 @@ workflows:
           context:
             - AWS
             - jira
+            - slack-deploy
           repo_name: tesla_http_proxy
           # Create issues for CVEs with severity at least CRITICAL and assign to msg
           extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
