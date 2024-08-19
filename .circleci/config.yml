@@ -43,6 +43,7 @@ workflows:
           context:
             - AWS
             - jira
+            - slack-deploy
           repo_name: tesla_http_proxy
           extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
           post-steps:
@@ -51,7 +52,7 @@ workflows:
                 channel: C066TSQ42PM #monitoring-infrastructure-alerts
           filters:
             branches:
-              only: [main, "/.*cve[\\/-].*/"]
+              only: [main, "/.*cve[\\/_].*/"]
       - proxy_deploy:
           requires: [wg/build]
           context:
@@ -92,6 +93,7 @@ workflows:
           context:
             - AWS
             - jira
+            - slack-deploy
           repo_name: tesla_http_proxy
           extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
           post-steps:
