@@ -1,0 +1,7 @@
+image_name: tesla_http_proxy
+primary_owner:
+  email: owen@weavegrid.com
+  jira_id: 63d2ff1c95cff7f585c3f766
+labels:
+- cve_tesla_http_proxy
+jira_project: VI

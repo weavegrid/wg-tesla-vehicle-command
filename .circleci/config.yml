@@ -38,22 +38,20 @@ workflows:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
                 channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
-      - wg/image_scan:
+      - wg/new_image_scan:
           requires: [wg/build]
           context:
             - AWS
             - jira
-            - slack-deploy
           repo_name: tesla_http_proxy
-          # Create issues for CVEs with severity at least CRITICAL and assign to msg
-          extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
-          filters:
-            branches:
-              only: [main, "/cve[\\/-].*/"]
+          extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
           post-steps:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
-                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+                channel: C066TSQ42PM #monitoring-infrastructure-alerts
+          filters:
+            branches:
+              only: [main, "/.*cve[\\/-].*/"]
       - proxy_deploy:
           requires: [wg/build]
           context:
@@ -85,20 +83,18 @@ workflows:
   nightly-scan:
     triggers:
       - schedule:
-          cron: "44 2 * * *"
+          cron: "34 20 * * *"
           filters:
             branches:
               only: [main]
     jobs:
-      - wg/image_scan:
+      - wg/new_image_scan:
           context:
             - AWS
             - jira
-            - slack-deploy
           repo_name: tesla_http_proxy
-          # Create issues for CVEs with severity at least CRITICAL and assign to msg
-          extra_args: --min-jira-severity CRITICAL --jira-assignee-id 618acf71e1b3e000694b6344
+          extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
           post-steps:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
-                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+                channel: C066TSQ42PM #monitoring-infrastructure-alerts
