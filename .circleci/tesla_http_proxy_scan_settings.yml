@@ -5,3 +5,10 @@ primary_owner:
 labels:
 - cve_tesla_http_proxy
 jira_project: VI
+ignore_list:
+- id: CVE-2024-24790
+  reason: risk_accepted # requires upgrading upstream package to go 1.21
+  expiration: 2025-01-21 # 1 month before waiver actually expires
+- id: CVE-2023-45288
+  reason: risk_accepted # requires upgrading upstream package to go 1.21
+  expiration: 2025-01-21 # 1 month before waiver actually expires
