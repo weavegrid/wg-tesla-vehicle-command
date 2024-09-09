@@ -38,6 +38,30 @@ workflows:
             - wg/slack-failure:
                 branch_pattern: 'main|master'
                 channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/test:
+          context:
+            - AWS
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          requires: [wg/build]
+          resource_class: medium
+          docker_entrypoint: /bin/sh  # Alpine Linux does not come with bash
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/lint:
+          context:
+            - AWS
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          requires: [wg/build]
+          resource_class: medium
+          docker_entrypoint: /bin/sh  # Alpine Linux does not come with bash
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
       - wg/new_image_scan:
           requires: [wg/build]
           context:
