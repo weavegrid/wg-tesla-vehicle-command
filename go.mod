@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/99designs/keyring v1.2.2
 	github.com/go-ble/ble v0.0.0-20220207185428-60d1eecf2633
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	golang.org/x/term v0.5.0
 	google.golang.org/protobuf v1.28.1
 )

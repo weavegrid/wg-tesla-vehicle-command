@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultTimeout      = 10 * time.Second
+	defaultTimeout      = 30 * time.Second
 	maxRequestBodyBytes = 512
 	vinLength           = 17
 )
@@ -123,6 +123,13 @@ func writeJSONError(w http.ResponseWriter, code int, err error) {
 		} else {
 			reply.Error = err.Error()
 		}
+
+		// override the status code to ensure a 408 is returned for vehicle not awake
+		// to be backwards compatible with the rest api return code
+		if err == protocol.ErrVehicleNotAwake {
+			code = http.StatusRequestTimeout
+		}
+
 		jsonBytes, err = json.Marshal(&reply)
 		if err != nil {
 			log.Error("Error serializing reply %+v: %s", &reply, err)
@@ -208,6 +215,7 @@ func (p *Proxy) forwardRequest(host string, w http.ResponseWriter, req *http.Req
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
 	log.Info("Received %s request for %s", req.Method, req.URL.Path)
 
 	acct, err := getAccount(req)

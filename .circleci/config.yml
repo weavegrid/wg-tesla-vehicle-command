@@ -1,0 +1,126 @@
+version: 2.1
+orbs:
+  wg: weavegrid/wg-branch@0.2
+  terraform: circleci/terraform@3.0
+parameters:
+  docker_use_weavegrid:
+    description: Use dedicated build host
+    type: boolean
+    default: true
+jobs:
+  proxy_deploy:
+    machine:
+      image: default
+    steps:
+      - checkout
+      - terraform/install:
+          terraform_version: "1.3.8"
+      - run:
+          name: Apply changes
+          command: |
+            cd terraform
+            terraform init -input=false
+            terraform apply \
+              -input=false \
+              -auto-approve \
+              -var image_tag="$(git rev-parse --short=7 HEAD)"
+workflows:
+  version: 2
+  build:
+    jobs:
+      - wg/build:
+          context:
+            - AWS
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          docker_use_weavegrid: <<pipeline.parameters.docker_use_weavegrid>>
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/test:
+          context:
+            - AWS
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          requires: [wg/build]
+          resource_class: medium
+          docker_entrypoint: /bin/sh  # Alpine Linux does not come with bash
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/lint:
+          context:
+            - AWS
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          requires: [wg/build]
+          resource_class: medium
+          docker_entrypoint: /bin/sh  # Alpine Linux does not come with bash
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/new_image_scan:
+          requires: [wg/build]
+          context:
+            - AWS
+            - jira
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C066TSQ42PM #monitoring-infrastructure-alerts
+          filters:
+            branches:
+              only: [main, "/.*cve[\\/_].*/"]
+      - proxy_deploy:
+          requires: [wg/build]
+          context:
+            - AWS
+            - slack-deploy
+          filters:
+            branches:
+              only: [main]
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+      - wg/deploy_to_stage:
+          context:
+            - AWS
+            - circleci
+            - slack-deploy
+          chart_name: tesla-http-proxy
+          deploy_branch_name: tesla-http-proxy
+          default_branch: main
+          requires: [wg/build]
+          filters:
+            branches:
+              only: [main]
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C03CVPNGA0N #monitoring-vehicle-integrations-alerts
+  nightly-scan:
+    triggers:
+      - schedule:
+          cron: "34 20 * * *"
+          filters:
+            branches:
+              only: [main]
+    jobs:
+      - wg/new_image_scan:
+          context:
+            - AWS
+            - jira
+            - slack-deploy
+          repo_name: tesla_http_proxy
+          extra_args: "--repo-config .circleci/tesla_http_proxy_scan_settings.yml"
+          post-steps:
+            - wg/slack-failure:
+                branch_pattern: 'main|master'
+                channel: C066TSQ42PM #monitoring-infrastructure-alerts

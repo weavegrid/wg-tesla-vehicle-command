@@ -195,7 +195,7 @@ This command creates an unencrypted private key, `key.pem`.
 You can start the proxy server using the following command:
 
 ```bash
-tesla-http-proxy -tls-key key.pem -cert cert.pem -port 4443
+tesla-http-proxy -tls-key tls-key.pem -cert tls-cert.pem -port 4443
 ```
 
 *Note:* In production, you'll likely want to omit the `-port 4443` and listen on
@@ -212,7 +212,7 @@ Endpoints that do not support end-to-end authentication are proxied to Tesla's R
 ```bash
 export TESLA_AUTH_TOKEN=<access-token>
 export VIN=<vin>
-curl --cacert cert.pem \
+curl --cacert tls-cert.pem \
     --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
     "https://localhost:4443/api/1/vehicles/$VIN/vehicle_data" \
     | jq -r .
@@ -226,7 +226,7 @@ proxy to send a `flash_lights` command to the vehicle:
 ```bash
 export TESLA_AUTH_TOKEN=<access-token>
 export VIN=<vin>
-curl --cacert cert.pem \
+curl --cacert tls-cert.pem \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
     --data '{}' \

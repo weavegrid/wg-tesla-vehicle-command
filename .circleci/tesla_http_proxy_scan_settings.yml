@@ -1,0 +1,17 @@
+image_name: tesla_http_proxy
+primary_owner:
+  email: owen@weavegrid.com
+  jira_id: 63d2ff1c95cff7f585c3f766
+labels:
+- cve_tesla_http_proxy
+jira_project: VI
+ignore_list:
+- id: CVE-2024-24790
+  reason: risk_accepted # requires upgrading upstream package to go 1.21
+  expiration: 2025-02-21
+- id: CVE-2023-45288
+  reason: risk_accepted # requires upgrading upstream package to go 1.21
+  expiration: 2025-02-21
+- id: CVE-2023-45283
+  reason: non_impact # Spurious warning, we're already on version of go with fix
+  expiration: 2025-02-21
