@@ -9,6 +9,7 @@ import (
 	"github.com/teslamotors/vehicle-command/pkg/connector"
 	"github.com/teslamotors/vehicle-command/pkg/protocol"
 	carserver "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/carserver"
+	"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/keys"
 	"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/vcsec"
 )
 
@@ -121,7 +122,7 @@ func (v *Vehicle) SetSentryMode(ctx context.Context, state bool) error {
 //
 // We recommend users avoid this command unless they are managing a fleet of vehicles and understand
 // the implications of enabling the mode. See official API documentation at
-// https://developer.tesla.com/docs/fleet-api#guest_mode.
+// https://developer.tesla.com/docs/fleet-api/endpoints/vehicle-commands#guest-mode
 func (v *Vehicle) SetGuestMode(ctx context.Context, enabled bool) error {
 	return v.executeCarServerAction(ctx,
 		&carserver.Action_VehicleAction{
@@ -178,10 +179,21 @@ func (v *Vehicle) TriggerHomelink(ctx context.Context, latitude float32, longitu
 // AddKey adds a public key to the vehicle's whitelist. If isOwner is true, the new key can
 // authorize changes to vehicle access controls, such as adding/removing other keys.
 func (v *Vehicle) AddKey(ctx context.Context, publicKey *ecdh.PublicKey, isOwner bool, formFactor vcsec.KeyFormFactor) error {
+	if isOwner {
+		return v.AddKeyWithRole(ctx, publicKey, keys.Role_ROLE_OWNER, formFactor)
+	}
+	return v.AddKeyWithRole(ctx, publicKey, keys.Role_ROLE_DRIVER, formFactor)
+}
+
+// AddKeyWithRole adds a public key to the vehicle's whitelist. See [Protocol Specification] for
+// more information on roles.
+//
+// [Protocol Specification]: https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md#roles
+func (v *Vehicle) AddKeyWithRole(ctx context.Context, publicKey *ecdh.PublicKey, role keys.Role, formFactor vcsec.KeyFormFactor) error {
 	if publicKey.Curve() != ecdh.P256() {
 		return protocol.ErrInvalidPublicKey
 	}
-	payload := addKeyPayload(publicKey, isOwner, formFactor)
+	payload := addKeyPayload(publicKey, role, formFactor)
 	encodedPayload, err := proto.Marshal(payload)
 	if err != nil {
 		return err
@@ -212,19 +224,7 @@ func (v *Vehicle) RemoveKey(ctx context.Context, publicKey *ecdh.PublicKey) erro
 }
 
 func (v *Vehicle) KeySummary(ctx context.Context) (*vcsec.WhitelistInfo, error) {
-	payload := vcsec.UnsignedMessage{
-		SubMessage: &vcsec.UnsignedMessage_InformationRequest{
-			InformationRequest: &vcsec.InformationRequest{
-				InformationRequestType: vcsec.InformationRequestType_INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO,
-			},
-		},
-	}
-	encodedPayload, err := proto.Marshal(&payload)
-	if err != nil {
-		return nil, err
-	}
-	done := func(v *vcsec.FromVCSECMessage) (bool, error) { return true, nil }
-	reply, err := v.getVCSECResult(ctx, encodedPayload, connector.AuthMethodNone, done)
+	reply, err := v.getVCSECInfo(ctx, vcsec.InformationRequestType_INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO, slotNone)
 	if err != nil {
 		return nil, err
 	}
@@ -232,22 +232,7 @@ func (v *Vehicle) KeySummary(ctx context.Context) (*vcsec.WhitelistInfo, error) 
 }
 
 func (v *Vehicle) KeyInfoBySlot(ctx context.Context, slot uint32) (*vcsec.WhitelistEntryInfo, error) {
-	payload := vcsec.UnsignedMessage{
-		SubMessage: &vcsec.UnsignedMessage_InformationRequest{
-			InformationRequest: &vcsec.InformationRequest{
-				InformationRequestType: vcsec.InformationRequestType_INFORMATION_REQUEST_TYPE_GET_WHITELIST_ENTRY_INFO,
-				Key: &vcsec.InformationRequest_Slot{
-					Slot: slot,
-				},
-			},
-		},
-	}
-	encodedPayload, err := proto.Marshal(&payload)
-	if err != nil {
-		return nil, err
-	}
-	done := func(v *vcsec.FromVCSECMessage) (bool, error) { return true, nil }
-	reply, err := v.getVCSECResult(ctx, encodedPayload, connector.AuthMethodNone, done)
+	reply, err := v.getVCSECInfo(ctx, vcsec.InformationRequestType_INFORMATION_REQUEST_TYPE_GET_WHITELIST_ENTRY_INFO, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -276,13 +261,24 @@ func (v *Vehicle) Unlock(ctx context.Context) error {
 // attempting to call v.SessionInfo with the domain argument set to
 // [universal.Domain_DOMAIN_INFOTAINMENT].
 func (v *Vehicle) SendAddKeyRequest(ctx context.Context, publicKey *ecdh.PublicKey, isOwner bool, formFactor vcsec.KeyFormFactor) error {
+	if isOwner {
+		return v.SendAddKeyRequestWithRole(ctx, publicKey, keys.Role_ROLE_OWNER, formFactor)
+	}
+	return v.SendAddKeyRequestWithRole(ctx, publicKey, keys.Role_ROLE_DRIVER, formFactor)
+}
+
+// SendAddKeyRequestWithRole behaves like [SendAddKeyRequest] except the new key's role can be
+// specified explicitly. See [Protocol Specification] for more information on roles.
+//
+// [Protocol Specification]: https://github.com/teslamotors/vehicle-command/blob/main/pkg/protocol/protocol.md#roles
+func (v *Vehicle) SendAddKeyRequestWithRole(ctx context.Context, publicKey *ecdh.PublicKey, role keys.Role, formFactor vcsec.KeyFormFactor) error {
 	if publicKey.Curve() != ecdh.P256() {
 		return protocol.ErrInvalidPublicKey
 	}
 	if _, ok := v.conn.(connector.FleetAPIConnector); ok {
 		return protocol.ErrRequiresBLE
 	}
-	encodedPayload, err := proto.Marshal(addKeyPayload(publicKey, isOwner, formFactor))
+	encodedPayload, err := proto.Marshal(addKeyPayload(publicKey, role, formFactor))
 	if err != nil {
 		return err
 	}
@@ -297,4 +293,15 @@ func (v *Vehicle) SendAddKeyRequest(ctx context.Context, publicKey *ecdh.PublicK
 		return err
 	}
 	return v.conn.Send(ctx, encodedEnvelope)
+}
+
+// EraseGuestData erases user data created while in Guest Mode. This command has no effect unless
+// the vehicle is currently in Guest Mode.
+func (v *Vehicle) EraseGuestData(ctx context.Context) error {
+	return v.executeCarServerAction(ctx,
+		&carserver.Action_VehicleAction{
+			VehicleAction: &carserver.VehicleAction{
+				VehicleActionMsg: &carserver.VehicleAction_EraseUserDataAction{},
+			},
+		})
 }

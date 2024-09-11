@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"os"
 
+	"github.com/teslamotors/vehicle-command/internal/schnorr"
 	"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/signatures"
 )
 
@@ -127,9 +128,6 @@ func (n *NativeECDHKey) Exchange(publicBytes []byte) (Session, error) {
 		return nil, err
 	}
 
-	kdf := hmac.New(sha256.New, session.key)
-	kdf.Write([]byte(labelSessionInfo))
-
 	if session.gcm, err = cipher.NewGCM(block); err != nil {
 		return nil, err
 	}
@@ -139,8 +137,8 @@ func (n *NativeECDHKey) Exchange(publicBytes []byte) (Session, error) {
 
 func NewECDHPrivateKey(rng io.Reader) (ECDHPrivateKey, error) {
 	if ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rng); err == nil {
-		native := NativeECDHKey{ecdsaKey}
-		return &native, nil
+		native := &NativeECDHKey{ecdsaKey}
+		return native, nil
 	} else {
 		return nil, err
 	}
@@ -235,4 +233,12 @@ func (n *NativeECDHKey) Public() *ecdsa.PublicKey {
 func (n *NativeECDHKey) PublicBytes() []byte {
 	publicKey := n.Public()
 	return elliptic.Marshal(publicKey, publicKey.X, publicKey.Y)
+}
+
+func (n *NativeECDHKey) SchnorrSignature(message []byte) ([]byte, error) {
+	skey, err := n.PrivateKey.ECDH()
+	if err != nil {
+		return nil, err
+	}
+	return schnorr.Sign(skey, message)
 }

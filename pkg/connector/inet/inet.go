@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +17,9 @@ import (
 	"github.com/teslamotors/vehicle-command/pkg/connector"
 	"github.com/teslamotors/vehicle-command/pkg/protocol"
 )
+
+// MaxLatency is the default maximum latency permitted when updating the vehicle clock estimate.
+var MaxLatency = 10 * time.Second
 
 func readWithContext(ctx context.Context, r io.Reader, p []byte) ([]byte, error) {
 	bytesRead := 0
@@ -34,6 +40,19 @@ func readWithContext(ctx context.Context, r io.Reader, p []byte) ([]byte, error)
 		}
 	}
 }
+
+var ErrVehicleNotAwake = protocol.NewError("vehicle unavailable: vehicle is offline or asleep", false, false)
+
+/*
+The regular expression below extracts domains from HTTP bodies:
+
+	{
+	  "response": null,
+	  "error": "user out of region, use base URL: https://fleet-api.prd.na.vn.cloud.tesla.com, see https://...",
+	  "error_description": ""
+	}
+*/
+var baseDomainRE = regexp.MustCompile(`use base URL: https://([-a-z0-9.]*)`)
 
 type HttpError struct {
 	Code    int
@@ -58,7 +77,7 @@ func (e *HttpError) Temporary() bool {
 	return e.Code == http.StatusServiceUnavailable ||
 		e.Code == http.StatusGatewayTimeout ||
 		e.Code == http.StatusRequestTimeout ||
-		e.Code == http.StatusTooManyRequests
+		e.Code == http.StatusMisdirectedRequest
 }
 
 func SendFleetAPICommand(ctx context.Context, client *http.Client, userAgent, authHeader string, url string, command interface{}) ([]byte, error) {
@@ -102,26 +121,39 @@ func SendFleetAPICommand(ctx context.Context, client *http.Client, userAgent, au
 	switch result.StatusCode {
 	case http.StatusOK:
 		return body, nil
-	case http.StatusUnprocessableEntity:
-		if bytes.Contains(body, []byte("vehicle does not support signed commands")) {
-			return nil, protocol.ErrProtocolNotSupported
-		}
+	case http.StatusUnprocessableEntity: // HTTP: 422 on commands endpoint means protocol is not supported (fallback to regular commands)
+		return nil, protocol.ErrProtocolNotSupported
 	case http.StatusServiceUnavailable:
-		return nil, protocol.ErrVehicleNotAwake
+		return nil, ErrVehicleNotAwake
 	case http.StatusRequestTimeout:
 		if bytes.Contains(body, []byte("vehicle is offline")) {
-			return nil, protocol.ErrVehicleNotAwake
+			return nil, ErrVehicleNotAwake
 		}
 	}
 
 	return nil, &HttpError{Code: result.StatusCode, Message: string(body)}
 }
 
+func ValidTeslaDomainSuffix(domain string) bool {
+	return strings.HasSuffix(domain, ".tesla.com") || strings.HasSuffix(domain, ".tesla.cn") || strings.HasSuffix(domain, ".teslamotors.com")
+}
+
 // Sends a command to a Fleet API REST endpoint. Returns the response body and an error. The
 // response body is not necessarily nil if the error is set.
 func (c *Connection) SendFleetAPICommand(ctx context.Context, endpoint string, command interface{}) ([]byte, error) {
 	url := fmt.Sprintf("https://%s/%s", c.serverURL, endpoint)
-	return SendFleetAPICommand(ctx, &c.client, c.UserAgent, c.authHeader, url, command)
+	rsp, err := SendFleetAPICommand(ctx, &c.client, c.UserAgent, c.authHeader, url, command)
+	if err != nil {
+		var httpErr *HttpError
+		if errors.As(err, &httpErr) && httpErr.Code == http.StatusMisdirectedRequest {
+			matches := baseDomainRE.FindStringSubmatch(httpErr.Message)
+			if len(matches) == 2 && ValidTeslaDomainSuffix(matches[1]) {
+				log.Debug("Received HTTP Status 421. Updating server URL.")
+				c.serverURL = matches[1]
+			}
+		}
+	}
+	return rsp, err
 }
 
 // Connection implements the connector.Connector interface by POSTing commands to a server.
@@ -152,6 +184,10 @@ func NewConnection(vin string, authHeader, serverURL, userAgent string) *Connect
 
 func (c *Connection) PreferredAuthMethod() connector.AuthMethod {
 	return connector.AuthMethodHMAC
+}
+
+func (c *Connection) AllowedLatency() time.Duration {
+	return MaxLatency
 }
 
 func (c *Connection) RetryInterval() time.Duration {

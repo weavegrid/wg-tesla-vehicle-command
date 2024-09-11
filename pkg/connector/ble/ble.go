@@ -6,18 +6,23 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-ble/ble"
 	"github.com/teslamotors/vehicle-command/internal/log"
 	"github.com/teslamotors/vehicle-command/pkg/connector"
+	"github.com/teslamotors/vehicle-command/pkg/protocol"
 )
 
 const maxBLEMessageSize = 1024
 
+var ErrMaxConnectionsExceeded = protocol.NewError("the vehicle is already connected to the maximum number of BLE devices", false, false)
+
 var (
-	rxTimeout = time.Second
+	rxTimeout  = time.Second     // Timeout interval between receiving chunks of a mesasge
+	maxLatency = 4 * time.Second // Max allowed error when syncing vehicle clock
 )
 
 var (
@@ -81,6 +86,10 @@ func (c *Connection) Close() {
 	c.client.CancelConnection()
 }
 
+func (c *Connection) AllowedLatency() time.Duration {
+	return maxLatency
+}
+
 func (c *Connection) rx(p []byte) {
 	if time.Since(c.lastRx) > rxTimeout {
 		c.inputBuffer = []byte{}
@@ -112,15 +121,32 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 	return nil
 }
 
-func (c *Connection) Recieve() <-chan []byte {
-	return c.inbox
-}
-
 func (c *Connection) VIN() string {
 	return c.vin
 }
 
 func NewConnection(ctx context.Context, vin string) (*Connection, error) {
+	var lastError error
+	for {
+		conn, err := tryToConnect(ctx, vin)
+		if err == nil {
+			return conn, nil
+		}
+		if strings.Contains(err.Error(), "operation not permitted") {
+			return nil, err
+		}
+		log.Warning("BLE connection attempt failed: %s", err)
+		if err := ctx.Err(); err != nil {
+			if lastError != nil {
+				return nil, lastError
+			}
+			return nil, err
+		}
+		lastError = err
+	}
+}
+
+func tryToConnect(ctx context.Context, vin string) (*Connection, error) {
 	var err error
 	// We don't want concurrent calls to NewConnection that would defeat
 	// the point of reusing the existing BLE device. Note that this is not
@@ -144,19 +170,26 @@ func NewConnection(ctx context.Context, vin string) (*Connection, error) {
 
 	localName := fmt.Sprintf("S%02xC", digest[:8])
 	log.Debug("Searching for BLE beacon %s...", localName)
+	canConnect := false
 	filter := func(adv ble.Advertisement) bool {
-		if !adv.Connectable() || adv.LocalName() != localName {
+		ln := adv.LocalName()
+		if ln != localName {
 			return false
 		}
+		canConnect = adv.Connectable()
 		return true
 	}
 
-	log.Debug("Connecting to BLE beacon...")
 	client, err := ble.Connect(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find BLE beacon for %s (%s): %s", vin, localName, err)
 	}
 
+	if !canConnect {
+		return nil, ErrMaxConnectionsExceeded
+	}
+
+	log.Debug("Connecting to BLE beacon %s...", client.Addr())
 	services, err := client.DiscoverServices([]ble.UUID{vehicleServiceUUID})
 	if err != nil {
 		return nil, fmt.Errorf("ble: failed to enumerate device services: %s", err)

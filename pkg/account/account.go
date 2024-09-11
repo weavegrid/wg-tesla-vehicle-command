@@ -24,13 +24,9 @@ import (
 var (
 	//go:embed version.txt
 	libraryVersion string
-	// UserAgent is sent in HTTP requests.
-	//
-	// The default value is "<main package name>/<commit hash> tesla-sdk/<version>".
-	UserAgent = buildUserAgent()
 )
 
-func buildUserAgent() string {
+func buildUserAgent(app string) string {
 	library := strings.TrimSpace("tesla-sdk/" + libraryVersion)
 	build, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -40,26 +36,29 @@ func buildUserAgent() string {
 	if len(path) == 0 {
 		return library
 	}
-	app := path[len(path)-1]
 
-	var version string
-	if build.Main.Version != "(devel)" && build.Main.Version != "" {
-		version = build.Main.Version
-	} else {
-		for _, info := range build.Settings {
-			if info.Key == "vcs.revision" {
-				if len(info.Value) > 8 {
-					version = info.Value[0:8]
+	if app == "" {
+		app = path[len(path)-1]
+		var version string
+		if build.Main.Version != "(devel)" && build.Main.Version != "" {
+			version = build.Main.Version
+		} else {
+			for _, info := range build.Settings {
+				if info.Key == "vcs.revision" {
+					if len(info.Value) > 8 {
+						version = info.Value[0:8]
+					}
+					break
 				}
-				break
 			}
+		}
+
+		if version != "" {
+			app = fmt.Sprintf("%s/%s", app, version)
 		}
 	}
 
-	if version == "" {
-		return fmt.Sprintf("%s %s", app, library)
-	}
-	return fmt.Sprintf("%s/%s %s", app, version, library)
+	return fmt.Sprintf("%s %s", app, library)
 }
 
 // Account allows interaction with a Tesla account.
@@ -74,14 +73,26 @@ type Account struct {
 // We don't parse JWTs beyond what's required to extract the API server domain name
 type oauthPayload struct {
 	Audiences []string `json:"aud"`
+	OUCode    string   `json:"ou_code"`
 }
 
 var domainRegEx = regexp.MustCompile(`^[A-Za-z0-9-.]+$`) // We're mostly interested in stopping paths; the http package handles the rest.
 var remappedDomains = map[string]string{}                // For use during development; populate in an init() function.
 
+const defaultDomain = "fleet-api.prd.na.vn.cloud.tesla.com"
+
 func (p *oauthPayload) domain() string {
+	if len(remappedDomains) > 0 {
+		for _, a := range p.Audiences {
+			if d, ok := remappedDomains[a]; ok {
+				return d
+			}
+		}
+	}
+	domain := defaultDomain
+	ouCodeMatch := fmt.Sprintf(".%s.", strings.ToLower(p.OUCode))
 	for _, u := range p.Audiences {
-		if strings.HasPrefix(u, "https://auth.tesla.com") {
+		if strings.HasPrefix(u, "https://auth.tesla.") {
 			continue
 		}
 		d, _ := strings.CutPrefix(u, "https://")
@@ -89,18 +100,21 @@ func (p *oauthPayload) domain() string {
 		if !domainRegEx.MatchString(d) {
 			continue
 		}
-		if remapped, ok := remappedDomains[d]; ok {
-			return remapped
-		}
-		if strings.HasSuffix(d, ".tesla.com") || strings.HasSuffix(d, ".tesla.cn") {
-			return d
+
+		if inet.ValidTeslaDomainSuffix(d) && strings.HasPrefix(d, "fleet-api.") {
+			domain = d
+			// Prefer domains that contain the ou_code (region)
+			if strings.Contains(domain, ouCodeMatch) {
+				return domain
+			}
 		}
 	}
-	return ""
+	return domain
 }
 
 // New returns an [Account] that can be used to fetch a [vehicle.Vehicle].
-func New(oauthToken string) (*Account, error) {
+// Optional userAgent can be passed in - otherwise it will be generated from code
+func New(oauthToken, userAgent string) (*Account, error) {
 	parts := strings.Split(oauthToken, ".")
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("client provided malformed OAuth token")
@@ -119,7 +133,7 @@ func New(oauthToken string) (*Account, error) {
 		return nil, fmt.Errorf("client provided OAuth token with invalid audiences")
 	}
 	return &Account{
-		UserAgent:  UserAgent,
+		UserAgent:  buildUserAgent(userAgent),
 		authHeader: "Bearer " + strings.TrimSpace(oauthToken),
 		Host:       domain,
 	}, nil

@@ -10,7 +10,10 @@ and OAuth tokens) in an OS-dependent credential store.
 
 	import flag
 
-	config := Config{Flags: FlagAll}
+	config, err := NewConfig(FlagAll)
+	if err != nil {
+		panic(err)
+	}
 	config.RegisterCommandLineFlags() // Adds command-line flags for private keys, OAuth, etc.
 	flag.Parse()
 	config.ReadFromEnvironment()      // Fills in missing fields using environment variables
@@ -34,13 +37,13 @@ Alternatively, you can use a [Flag] mask to control what [Config] fields are pop
 the examples below, config.Flags must be set before calling [flag.Parse] or
 [Config.ReadFromEnvironment]:
 
-	config = Config{Flags: FlagOAuth | FlagPrivateKey | FlagVIN} // config.Connect() will use the Internet, not BLE.
-	config = Config{Flags: FlagBLE | FlagPrivateKey | FlagVIN} // config.Connect() will use BLE, not the Internet.
-	config = Config{Flags: FlagBLE | FlagVIN} // config.Connect() will create an unauthenticated vehicle connection.
+	config, err = NewConfig(FlagOAuth | FlagPrivateKey | FlagVIN) // config.Connect() will use the Internet, not BLE.
+	config, err = NewConfig(FlagBLE | FlagPrivateKey | FlagVIN) // config.Connect() will use BLE, not the Internet.
+	config, err = NewConfig(FlagBLE | FlagVIN) // config.Connect() will create an unauthenticated vehicle connection.
 
 The last option will not attempt to load private keys when calling [Config.Connect], and therefore
 will not result in an error if a private key is defined in the environment but cannot be loaded.
-However, most [vehicle.Vehicle] commands do not work over unauathenticated connections.
+However, most [vehicle.Vehicle] commands do not work over unauthenticated connections.
 */
 package cli
 
@@ -64,34 +67,39 @@ import (
 	"github.com/99designs/keyring"
 )
 
-// domainNames is used to translate domains provided at the command line into native protocol.Domain
-// values.
-type domainNames []string
+var DomainsByName = map[string]protocol.Domain{
+	"VCSEC":        protocol.DomainVCSEC,
+	"INFOTAINMENT": protocol.DomainInfotainment,
+}
 
-func (d *domainNames) Set(value string) error {
-	*d = append(*d, value)
+var DomainNames = map[protocol.Domain]string{
+	protocol.DomainVCSEC:        "VCSEC",
+	protocol.DomainInfotainment: "INFOTAINMENT",
+}
+
+// DomainList is used to translate domains provided at the command line into native protocol.Domain
+// values.
+type DomainList []protocol.Domain
+
+// Set updates a DomainList from a command-line argument.
+func (d *DomainList) Set(value string) error {
+	canonicalName := strings.ToUpper(value)
+	if domain, ok := DomainsByName[canonicalName]; ok {
+		*d = append(*d, domain)
+	} else {
+		return fmt.Errorf("unknown domain '%s'", value)
+	}
 	return nil
 }
 
-func (d *domainNames) String() string {
-	return strings.Join(*d, ",")
-}
-
-func (d *domainNames) ToDomains() ([]protocol.Domain, error) {
-	mapping := map[string]protocol.Domain{
-		"VCSEC":        protocol.DomainVCSEC,
-		"INFOTAINMENT": protocol.DomainInfotainment,
-	}
-	var domains []protocol.Domain
-	for _, name := range *d {
-		canonicalName := strings.ToUpper(name)
-		if domain, ok := mapping[canonicalName]; ok {
-			domains = append(domains, domain)
-		} else {
-			return nil, fmt.Errorf("unknown domain '%s'", name)
+func (d *DomainList) String() string {
+	var names []string
+	for _, domain := range *d {
+		if name, ok := DomainNames[domain]; ok {
+			names = append(names, name)
 		}
 	}
-	return domains, nil
+	return strings.Join(names, ",")
 }
 
 // Environment variable names used are used by [Config.ReadFromEnvironment] to set common parameters.
@@ -142,9 +150,9 @@ type Config struct {
 	BackendType      backendType
 	Debug            bool // Enable keyring debug messages
 
-	// DomainNames can limit a vehicle connection to relevant subsystems, which can reduce
+	// Domains can limit a vehicle connection to relevant subsystems, which can reduce
 	// connection latency and avoid waking up the infotainment system unnecessarily.
-	DomainNames domainNames
+	Domains DomainList
 
 	password   *string
 	sessions   *cache.SessionCache
@@ -180,7 +188,7 @@ func (c *Config) RegisterCommandLineFlags() {
 		flag.StringVar(&c.CacheFilename, "session-cache", "", "Load session info cache from `file`. Defaults to $TESLA_CACHE_FILE.")
 		flag.StringVar(&c.KeyringKeyName, "key-name", "", "System keyring `name` for private key. Defaults to $TESLA_KEY_NAME.")
 		flag.StringVar(&c.KeyFilename, "key-file", "", "A `file` containing private key. Defaults to $TESLA_KEY_FILE.")
-		flag.Var(&c.DomainNames, "domain", "Domains to connect to (can be repeated; omit for all)")
+		flag.Var(&c.Domains, "domain", "Domains to connect to (can be repeated; omit for all)")
 	}
 	if c.Flags.isSet(FlagOAuth) {
 		flag.StringVar(&c.KeyringTokenName, "token-name", "", "System keyring `name` for OAuth token. Defaults to $TESLA_TOKEN_NAME.")
@@ -317,7 +325,7 @@ func (c *Config) PrivateKey() (skey protocol.ECDHPrivateKey, err error) {
 // Connect to vehicle and/or account.
 //
 // If c.TokenFilename is set, the returned account will not be nil and the vehicle will use a
-// connector.inet connection if a VIN was provded. If no token filename is set, c.VIN is required,
+// connector.inet connection if a VIN was provided. If no token filename is set, c.VIN is required,
 // the account will be nil, and the vehicle will use a connector.ble connection.
 func (c *Config) Connect(ctx context.Context) (acct *account.Account, car *vehicle.Vehicle, err error) {
 	if c.VIN == "" && c.KeyringTokenName == "" && c.TokenFilename == "" {
@@ -362,13 +370,8 @@ func (c *Config) Connect(ctx context.Context) (acct *account.Account, car *vehic
 		return nil, nil, err
 	}
 	if skey != nil {
-		log.Info("Securing connction...")
-		domains, err := c.DomainNames.ToDomains()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := car.StartSession(ctx, domains); err != nil {
+		log.Info("Securing connection...")
+		if err := car.StartSession(ctx, c.Domains); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -418,7 +421,7 @@ func (c *Config) Account() (*account.Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	return account.New(token)
+	return account.New(token, "")
 }
 
 // SavePrivateKey writes skey to the system keyring or file, depending on what options are
